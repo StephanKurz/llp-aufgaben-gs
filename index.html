@@ -45,11 +45,12 @@
     display: flex; flex-direction: column; gap: 8px;
   }
   #new-task-form[hidden] { display: none; }
-  #new-task-form input {
+  #new-task-form input, #new-task-form select {
     padding: 7px 10px; border: 1px solid var(--border); border-radius: 5px;
-    font-size: 13.5px; font-family: inherit; width: 100%;
+    font-size: 13.5px; font-family: inherit; width: 100%; background: #fff;
   }
   #new-task-form .field-label { font-size: 11.5px; color: var(--muted); margin-bottom: 2px; }
+  #new-task-form .field-hint { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
   #new-task-form .field-row { display: flex; gap: 8px; }
   #new-task-form .field-row > div { flex: 1; }
   #new-task-form .form-actions { display: flex; gap: 8px; margin-top: 4px; }
@@ -104,14 +105,15 @@
   .task-location { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
   .task-actions {
-    display: flex; gap: 14px; margin-top: 8px; padding-left: 70px;
+    display: flex; gap: 8px; margin-top: 8px; padding-left: 70px;
   }
   .task-action {
-    font-size: 12px; font-weight: 600; cursor: pointer; user-select: none;
-    background: none; border: none; padding: 0; font-family: inherit;
+    font-size: 12.5px; font-weight: 600; cursor: pointer; user-select: none;
+    border: none; border-radius: 5px; padding: 5px 12px; font-family: inherit;
+    color: #fff;
   }
-  .task-action.done { color: var(--success); }
-  .task-action.move { color: var(--blue); }
+  .task-action.done { background: var(--success); }
+  .task-action.move { background: var(--blue); }
   .task-action:disabled { opacity: 0.5; cursor: default; }
 
   .move-form {
@@ -160,6 +162,22 @@
       <div class="field-label">Ort (optional)</div>
       <input type="text" id="new-task-location" placeholder="z. B. Geschäftsstelle">
     </div>
+    <div>
+      <div class="field-label">Wiederholung</div>
+      <select id="new-task-recurrence">
+        <option value="none">Keine Wiederholung</option>
+        <option value="daily">Jeden Tag</option>
+        <option value="weekly">Jede Woche</option>
+        <option value="monthly">Jeden Monat</option>
+        <option value="quarterly">Alle drei Monate</option>
+        <option value="yearly">Jedes Jahr</option>
+      </select>
+    </div>
+    <div id="new-task-expiry-row" hidden>
+      <div class="field-label">Verfallsdatum (optional, sonst max. 2 Jahre)</div>
+      <input type="date" id="new-task-expiry">
+      <div class="field-hint">Ohne Angabe endet die Wiederholung automatisch nach maximal 2 Jahren. Es werden maximal 120 Termine auf einmal angelegt.</div>
+    </div>
     <div id="new-task-error"></div>
     <div class="form-actions">
       <button type="button" class="create-btn" id="new-task-submit">Anlegen</button>
@@ -182,6 +200,12 @@
 
   function escapeHtml(s) {
     return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  // Bei "Geschäftsstelle (Adresse)" reicht in der Uebersicht der Name ohne die Klammer-Adresse.
+  function simplifyLocation(loc) {
+    if (!loc) return loc;
+    return loc.replace(/^Geschäftsstelle\s*\([^)]*\)\s*$/i, "Geschäftsstelle");
   }
 
   function dayKey(iso) {
@@ -415,12 +439,12 @@
           `<div class="task-time">${time ? escapeHtml(time) : ""}</div>` +
           `<div class="task-body">` +
             `<div class="task-name">${escapeHtml(t.name)}</div>` +
-            (t.location ? `<div class="task-location">${escapeHtml(t.location)}</div>` : "") +
+            (t.location ? `<div class="task-location">${escapeHtml(simplifyLocation(t.location))}</div>` : "") +
           `</div>` +
         `</div>` +
         `<div class="task-actions">` +
-          `<button type="button" class="task-action done">✓ Erledigt</button>` +
-          `<button type="button" class="task-action move">↻ Verschieben</button>` +
+          `<button type="button" class="task-action done">Erledigt</button>` +
+          `<button type="button" class="task-action move">Verschieben</button>` +
         `</div>`;
 
       const doneBtn = taskEl.querySelector(".task-action.done");
@@ -448,12 +472,61 @@
     }
   }
 
+  const MAX_OCCURRENCES = 120;
+  const DEFAULT_EXPIRY_MS = 2 * 365 * 24 * 60 * 60 * 1000; // 2 Jahre, wenn kein Verfallsdatum angegeben
+
+  // Easyverein bietet ueber die oeffentliche API keine echten Wiederholungsregeln (das
+  // "interval"-Feld ist read-only) -> stattdessen werden individuelle, eigenstaendig
+  // abhakbare Termine bis zum Verfallsdatum (Standard: 2 Jahre) angelegt, begrenzt auf
+  // MAX_OCCURRENCES, damit das Anlegen nicht ewig dauert bzw. das Anfragelimit sprengt.
+  function addRecurrenceOffset(date, recurrence, index) {
+    const d = new Date(date);
+    if (recurrence === "daily") d.setDate(d.getDate() + index);
+    else if (recurrence === "weekly") d.setDate(d.getDate() + index * 7);
+    else if (recurrence === "monthly") d.setMonth(d.getMonth() + index);
+    else if (recurrence === "quarterly") d.setMonth(d.getMonth() + index * 3);
+    else if (recurrence === "yearly") d.setFullYear(d.getFullYear() + index);
+    return d;
+  }
+
+  function buildOccurrences(dateVal, timeVal, recurrence, expiryVal) {
+    const baseDate = timeVal ? new Date(`${dateVal}T${timeVal}:00`) : new Date(`${dateVal}T00:00:00`);
+
+    if (recurrence === "none") {
+      if (timeVal) {
+        return { occurrences: [{ start: baseDate.toISOString(), end: new Date(baseDate.getTime() + 60 * 60 * 1000).toISOString() }], truncated: false, totalPossible: 1 };
+      }
+      return { occurrences: [{ start: new Date(`${dateVal}T00:00:00`).toISOString(), end: new Date(`${dateVal}T23:59:59`).toISOString() }], truncated: false, totalPossible: 1 };
+    }
+
+    const expiryDate = expiryVal ? new Date(`${expiryVal}T23:59:59`) : new Date(baseDate.getTime() + DEFAULT_EXPIRY_MS);
+    const occurrences = [];
+    let totalPossible = 0;
+    for (let i = 0; i < 5000; i++) {
+      const occDate = addRecurrenceOffset(baseDate, recurrence, i);
+      if (occDate.getTime() > expiryDate.getTime()) break;
+      totalPossible++;
+      if (occurrences.length < MAX_OCCURRENCES) {
+        if (timeVal) {
+          occurrences.push({ start: occDate.toISOString(), end: new Date(occDate.getTime() + 60 * 60 * 1000).toISOString() });
+        } else {
+          const dateStr = localDateStr(occDate);
+          occurrences.push({ start: new Date(`${dateStr}T00:00:00`).toISOString(), end: new Date(`${dateStr}T23:59:59`).toISOString() });
+        }
+      }
+    }
+    return { occurrences, truncated: totalPossible > occurrences.length, totalPossible };
+  }
+
   const newTaskToggle = document.getElementById("new-task-toggle");
   const newTaskForm = document.getElementById("new-task-form");
   const newTaskName = document.getElementById("new-task-name");
   const newTaskDate = document.getElementById("new-task-date");
   const newTaskTime = document.getElementById("new-task-time");
   const newTaskLocation = document.getElementById("new-task-location");
+  const newTaskRecurrence = document.getElementById("new-task-recurrence");
+  const newTaskExpiryRow = document.getElementById("new-task-expiry-row");
+  const newTaskExpiry = document.getElementById("new-task-expiry");
   const newTaskError = document.getElementById("new-task-error");
   const newTaskSubmit = document.getElementById("new-task-submit");
   const newTaskCancel = document.getElementById("new-task-cancel");
@@ -463,6 +536,9 @@
     newTaskDate.value = "";
     newTaskTime.value = "";
     newTaskLocation.value = "";
+    newTaskRecurrence.value = "none";
+    newTaskExpiry.value = "";
+    newTaskExpiryRow.hidden = true;
     newTaskError.textContent = "";
   }
 
@@ -479,33 +555,34 @@
     resetNewTaskForm();
   });
 
+  newTaskRecurrence.addEventListener("change", () => {
+    newTaskExpiryRow.hidden = newTaskRecurrence.value === "none";
+  });
+
   newTaskSubmit.addEventListener("click", async () => {
     const name = newTaskName.value.trim();
     const dateVal = newTaskDate.value;
     const timeVal = newTaskTime.value;
     const location = newTaskLocation.value.trim();
+    const recurrence = newTaskRecurrence.value;
+    const expiryVal = newTaskExpiry.value;
 
     if (!name || !dateVal) {
       newTaskError.textContent = "Bitte Aufgabe und Datum angeben.";
       return;
     }
 
-    let newStart, newEnd, allDay;
-    if (timeVal) {
-      allDay = false;
-      const startDate = new Date(`${dateVal}T${timeVal}:00`);
-      newStart = startDate.toISOString();
-      newEnd = new Date(startDate.getTime() + 60 * 60 * 1000).toISOString();
-    } else {
-      allDay = true;
-      newStart = new Date(`${dateVal}T00:00:00`).toISOString();
-      newEnd = new Date(`${dateVal}T23:59:59`).toISOString();
-    }
+    const allDay = !timeVal;
+    const { occurrences, truncated, totalPossible } = buildOccurrences(dateVal, timeVal, recurrence, expiryVal);
 
     newTaskSubmit.disabled = true;
     newTaskError.textContent = "";
     try {
-      await callUpdate({ action: "create", name, location, allDay, newStart, newEnd });
+      await callUpdate({ action: "create", name, location, allDay, occurrences });
+      if (truncated) {
+        const lastDate = new Date(occurrences[occurrences.length - 1].start).toLocaleDateString("de-DE");
+        alert(`Hinweis: Es wären ${totalPossible} Termine bis zum Verfallsdatum möglich gewesen. Angelegt wurden die ersten ${occurrences.length} (bis ${lastDate}) – mehr auf einmal ist aus Performance-Gründen begrenzt. Bei Bedarf danach einfach erneut "Neue Aufgabe" mit Wiederholung anlegen.`);
+      }
       newTaskForm.hidden = true;
       newTaskToggle.hidden = false;
       resetNewTaskForm();
