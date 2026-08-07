@@ -7,11 +7,13 @@
 <style>
   :root {
     --red: #bd0010;
+    --blue: #2f5fa8;
     --border: #d7dce3;
     --bg: #f7f8fa;
     --text: #1f2937;
     --muted: #6b7280;
     --danger: #b3261e;
+    --success: #1a7f37;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -27,9 +29,37 @@
   }
   h1 {
     font-size: 17px;
-    margin: 0 0 18px;
+    margin: 0 0 14px;
     text-align: center;
   }
+
+  #new-task-row { text-align: center; margin-bottom: 18px; }
+  #new-task-toggle {
+    padding: 7px 16px; border: 1px solid var(--red); border-radius: 6px;
+    background: #fff; color: var(--red); font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  #new-task-form {
+    background: #fff; border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px; margin-bottom: 18px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  #new-task-form[hidden] { display: none; }
+  #new-task-form input {
+    padding: 7px 10px; border: 1px solid var(--border); border-radius: 5px;
+    font-size: 13.5px; font-family: inherit; width: 100%;
+  }
+  #new-task-form .field-label { font-size: 11.5px; color: var(--muted); margin-bottom: 2px; }
+  #new-task-form .field-row { display: flex; gap: 8px; }
+  #new-task-form .field-row > div { flex: 1; }
+  #new-task-form .form-actions { display: flex; gap: 8px; margin-top: 4px; }
+  #new-task-form .form-actions button {
+    padding: 7px 16px; border: none; border-radius: 5px;
+    font-size: 13px; cursor: pointer; font-family: inherit;
+  }
+  #new-task-form .create-btn { background: var(--red); color: #fff; }
+  #new-task-form .cancel-btn { background: none; color: var(--muted); }
+  #new-task-error { font-size: 12.5px; color: var(--danger); }
 
   #hint, #error {
     text-align: center;
@@ -57,13 +87,11 @@
     border-radius: 8px;
     padding: 10px 14px;
     margin-bottom: 8px;
-    display: flex;
-    gap: 12px;
-    align-items: baseline;
+    transition: opacity 0.25s ease, transform 0.25s ease;
   }
-  .task.canceled { opacity: 0.6; }
-  .task.canceled .task-name { text-decoration: line-through; color: var(--muted); }
+  .task.removing { opacity: 0; transform: translateX(8px); }
 
+  .task-row { display: flex; gap: 12px; align-items: baseline; }
   .task-time {
     flex: 0 0 auto;
     width: 58px;
@@ -74,11 +102,71 @@
   .task-body { flex: 1 1 auto; min-width: 0; }
   .task-name { font-size: 14px; font-weight: 600; }
   .task-location { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .task-actions {
+    display: flex; gap: 14px; margin-top: 8px; padding-left: 70px;
+  }
+  .task-action {
+    font-size: 12px; font-weight: 600; cursor: pointer; user-select: none;
+    background: none; border: none; padding: 0; font-family: inherit;
+  }
+  .task-action.done { color: var(--success); }
+  .task-action.move { color: var(--blue); }
+  .task-action:disabled { opacity: 0.5; cursor: default; }
+
+  .move-form {
+    margin-top: 10px; padding-left: 70px;
+  }
+  .move-form .quick-picks, .move-form .custom-date {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  }
+  .move-form input {
+    padding: 5px 8px; border: 1px solid var(--border); border-radius: 5px;
+    font-size: 13px; font-family: inherit;
+  }
+  .move-form button {
+    padding: 5px 12px; border: none; border-radius: 5px;
+    font-size: 12.5px; cursor: pointer; font-family: inherit;
+  }
+  .move-form .quick-btn { background: #eef2fb; color: var(--blue); }
+  .move-form .save-btn { background: var(--blue); color: #fff; }
+  .move-form .cancel-btn, .move-form .back-btn { background: none; color: var(--muted); }
+  .task-error { font-size: 12px; color: var(--danger); margin-top: 6px; padding-left: 70px; }
 </style>
 </head>
 <body>
 <div id="app">
   <h1>Aufgaben Geschäftsstelle</h1>
+
+  <div id="new-task-row">
+    <button type="button" id="new-task-toggle">+ Neue Aufgabe</button>
+  </div>
+  <div id="new-task-form" hidden>
+    <div>
+      <div class="field-label">Aufgabe</div>
+      <input type="text" id="new-task-name" placeholder="Was ist zu tun?">
+    </div>
+    <div class="field-row">
+      <div>
+        <div class="field-label">Datum</div>
+        <input type="date" id="new-task-date">
+      </div>
+      <div>
+        <div class="field-label">Uhrzeit (optional, sonst ganztägig)</div>
+        <input type="time" id="new-task-time">
+      </div>
+    </div>
+    <div>
+      <div class="field-label">Ort (optional)</div>
+      <input type="text" id="new-task-location" placeholder="z. B. Geschäftsstelle">
+    </div>
+    <div id="new-task-error"></div>
+    <div class="form-actions">
+      <button type="button" class="create-btn" id="new-task-submit">Anlegen</button>
+      <button type="button" class="cancel-btn" id="new-task-cancel">Abbrechen</button>
+    </div>
+  </div>
+
   <div id="hint">Lädt …</div>
   <div id="error" hidden></div>
   <div id="results"></div>
@@ -86,6 +174,7 @@
 
 <script>
   const TASKS_URL = "https://cclcdhwnzkzciwjaclzt.supabase.co/functions/v1/aufgaben-gs-events";
+  const UPDATE_URL = "https://cclcdhwnzkzciwjaclzt.supabase.co/functions/v1/aufgaben-gs-update";
 
   const hint = document.getElementById("hint");
   const errorBox = document.getElementById("error");
@@ -112,6 +201,192 @@
     return new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
   }
 
+  function pad(n) { return String(n).padStart(2, "0"); }
+
+  function localDateStr(d) {
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  function toLocalDateInputValue(iso) {
+    return localDateStr(new Date(iso));
+  }
+
+  function toLocalDateTimeInputValue(iso) {
+    const d = new Date(iso);
+    return `${localDateStr(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  // Naechster Montag "naechste Woche": ist heute bereits Montag, zaehlt das nicht als
+  // "naechste Woche" -> dann +7 statt +0.
+  function quickTargetDate(kind) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    if (kind === "tomorrow") {
+      d.setDate(d.getDate() + 1);
+    } else if (kind === "dayAfterTomorrow") {
+      d.setDate(d.getDate() + 2);
+    } else if (kind === "nextMonday") {
+      const day = d.getDay();
+      const daysToAdd = ((1 - day + 7) % 7) || 7;
+      d.setDate(d.getDate() + daysToAdd);
+    }
+    return d;
+  }
+
+  function removeTaskEl(taskEl) {
+    taskEl.classList.add("removing");
+    setTimeout(() => {
+      const group = taskEl.closest(".day-group");
+      taskEl.remove();
+      if (group && !group.querySelector(".task")) group.remove();
+      if (!resultsBox.querySelector(".task")) {
+        hint.textContent = "Keine offenen Aufgaben mehr im gewählten Zeitraum.";
+        hint.hidden = false;
+      }
+    }, 250);
+  }
+
+  async function callUpdate(payload) {
+    const resp = await fetch(UPDATE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || "Unbekannter Fehler.");
+    return data;
+  }
+
+  function showTaskError(taskEl, message) {
+    let errEl = taskEl.querySelector(".task-error");
+    if (!errEl) {
+      errEl = document.createElement("div");
+      errEl.className = "task-error";
+      taskEl.appendChild(errEl);
+    }
+    errEl.textContent = message;
+  }
+
+  async function markDone(taskEl, id, btn) {
+    btn.disabled = true;
+    try {
+      await callUpdate({ action: "done", id });
+      removeTaskEl(taskEl);
+    } catch (e) {
+      btn.disabled = false;
+      showTaskError(taskEl, "Fehler: " + e.message);
+    }
+  }
+
+  function dateAndDurationToStartEnd(task, targetDate) {
+    const durationMs = new Date(task.end).getTime() - new Date(task.start).getTime();
+    if (task.allDay) {
+      const dateStr = localDateStr(targetDate);
+      return {
+        newStart: new Date(`${dateStr}T00:00:00`).toISOString(),
+        newEnd: new Date(`${dateStr}T23:59:59`).toISOString(),
+      };
+    }
+    const orig = new Date(task.start);
+    const newStartDate = new Date(
+      targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(),
+      orig.getHours(), orig.getMinutes(), orig.getSeconds()
+    );
+    return {
+      newStart: newStartDate.toISOString(),
+      newEnd: new Date(newStartDate.getTime() + durationMs).toISOString(),
+    };
+  }
+
+  async function performMove(taskEl, task, newStart, newEnd, busyBtn) {
+    if (busyBtn) busyBtn.disabled = true;
+    try {
+      await callUpdate({ action: "move", id: task.id, newStart, newEnd });
+      removeTaskEl(taskEl);
+    } catch (e) {
+      if (busyBtn) busyBtn.disabled = false;
+      showTaskError(taskEl, "Fehler: " + e.message);
+    }
+  }
+
+  function showCustomDatePicker(taskEl, task, formEl) {
+    const quickEl = formEl.querySelector(".quick-picks");
+    let customEl = formEl.querySelector(".custom-date");
+    if (customEl) { quickEl.hidden = true; customEl.hidden = false; return; }
+
+    customEl = document.createElement("div");
+    customEl.className = "custom-date";
+    if (task.allDay) {
+      customEl.innerHTML =
+        `<input type="date" class="move-date" value="${toLocalDateInputValue(task.start)}">` +
+        `<button type="button" class="save-btn">Speichern</button>` +
+        `<button type="button" class="back-btn">Zurück</button>`;
+    } else {
+      customEl.innerHTML =
+        `<input type="datetime-local" class="move-datetime" value="${toLocalDateTimeInputValue(task.start)}">` +
+        `<button type="button" class="save-btn">Speichern</button>` +
+        `<button type="button" class="back-btn">Zurück</button>`;
+    }
+    formEl.appendChild(customEl);
+    quickEl.hidden = true;
+
+    customEl.querySelector(".back-btn").addEventListener("click", () => {
+      customEl.hidden = true;
+      quickEl.hidden = false;
+    });
+
+    customEl.querySelector(".save-btn").addEventListener("click", () => {
+      const saveBtn = customEl.querySelector(".save-btn");
+      let targetDate;
+      if (task.allDay) {
+        const dateVal = customEl.querySelector(".move-date").value;
+        if (!dateVal) return;
+        targetDate = new Date(`${dateVal}T00:00:00`);
+      } else {
+        const dtVal = customEl.querySelector(".move-datetime").value;
+        if (!dtVal) return;
+        targetDate = new Date(dtVal);
+      }
+      const { newStart, newEnd } = dateAndDurationToStartEnd(task, targetDate);
+      performMove(taskEl, task, newStart, newEnd, saveBtn);
+    });
+  }
+
+  function openMoveForm(taskEl, task, moveBtn) {
+    if (taskEl.querySelector(".move-form")) return;
+    moveBtn.disabled = true;
+
+    const formEl = document.createElement("div");
+    formEl.className = "move-form";
+    formEl.innerHTML =
+      `<div class="quick-picks">` +
+        `<button type="button" class="quick-btn" data-q="tomorrow">Morgen</button>` +
+        `<button type="button" class="quick-btn" data-q="dayAfterTomorrow">Übermorgen</button>` +
+        `<button type="button" class="quick-btn" data-q="nextMonday">Nächste Woche (Mo)</button>` +
+        `<button type="button" class="quick-btn" data-q="custom">Datum …</button>` +
+        `<button type="button" class="cancel-btn">Abbrechen</button>` +
+      `</div>`;
+    taskEl.appendChild(formEl);
+
+    formEl.querySelector(".cancel-btn").addEventListener("click", () => {
+      formEl.remove();
+      moveBtn.disabled = false;
+    });
+
+    formEl.querySelectorAll(".quick-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const kind = btn.dataset.q;
+        if (kind === "custom") {
+          showCustomDatePicker(taskEl, task, formEl);
+          return;
+        }
+        const targetDate = quickTargetDate(kind);
+        const { newStart, newEnd } = dateAndDurationToStartEnd(task, targetDate);
+        performMove(taskEl, task, newStart, newEnd, btn);
+      });
+    });
+  }
+
   function renderTasks(tasks) {
     resultsBox.innerHTML = "";
     if (tasks.length === 0) {
@@ -133,14 +408,26 @@
         resultsBox.appendChild(groupEl);
       }
       const taskEl = document.createElement("div");
-      taskEl.className = "task" + (t.canceled ? " canceled" : "");
+      taskEl.className = "task";
       const time = formatTime(t.start, t.allDay);
       taskEl.innerHTML =
-        `<div class="task-time">${time ? escapeHtml(time) : ""}</div>` +
-        `<div class="task-body">` +
-          `<div class="task-name">${escapeHtml(t.name)}${t.canceled ? " (abgesagt)" : ""}</div>` +
-          (t.location ? `<div class="task-location">${escapeHtml(t.location)}</div>` : "") +
+        `<div class="task-row">` +
+          `<div class="task-time">${time ? escapeHtml(time) : ""}</div>` +
+          `<div class="task-body">` +
+            `<div class="task-name">${escapeHtml(t.name)}</div>` +
+            (t.location ? `<div class="task-location">${escapeHtml(t.location)}</div>` : "") +
+          `</div>` +
+        `</div>` +
+        `<div class="task-actions">` +
+          `<button type="button" class="task-action done">✓ Erledigt</button>` +
+          `<button type="button" class="task-action move">↻ Verschieben</button>` +
         `</div>`;
+
+      const doneBtn = taskEl.querySelector(".task-action.done");
+      const moveBtn = taskEl.querySelector(".task-action.move");
+      doneBtn.addEventListener("click", () => markDone(taskEl, t.id, doneBtn));
+      moveBtn.addEventListener("click", () => openMoveForm(taskEl, t, moveBtn));
+
       groupEl.appendChild(taskEl);
     }
   }
@@ -160,6 +447,75 @@
       errorBox.hidden = false;
     }
   }
+
+  const newTaskToggle = document.getElementById("new-task-toggle");
+  const newTaskForm = document.getElementById("new-task-form");
+  const newTaskName = document.getElementById("new-task-name");
+  const newTaskDate = document.getElementById("new-task-date");
+  const newTaskTime = document.getElementById("new-task-time");
+  const newTaskLocation = document.getElementById("new-task-location");
+  const newTaskError = document.getElementById("new-task-error");
+  const newTaskSubmit = document.getElementById("new-task-submit");
+  const newTaskCancel = document.getElementById("new-task-cancel");
+
+  function resetNewTaskForm() {
+    newTaskName.value = "";
+    newTaskDate.value = "";
+    newTaskTime.value = "";
+    newTaskLocation.value = "";
+    newTaskError.textContent = "";
+  }
+
+  newTaskToggle.addEventListener("click", () => {
+    newTaskForm.hidden = false;
+    newTaskToggle.hidden = true;
+    newTaskDate.value = localDateStr(new Date());
+    newTaskName.focus();
+  });
+
+  newTaskCancel.addEventListener("click", () => {
+    newTaskForm.hidden = true;
+    newTaskToggle.hidden = false;
+    resetNewTaskForm();
+  });
+
+  newTaskSubmit.addEventListener("click", async () => {
+    const name = newTaskName.value.trim();
+    const dateVal = newTaskDate.value;
+    const timeVal = newTaskTime.value;
+    const location = newTaskLocation.value.trim();
+
+    if (!name || !dateVal) {
+      newTaskError.textContent = "Bitte Aufgabe und Datum angeben.";
+      return;
+    }
+
+    let newStart, newEnd, allDay;
+    if (timeVal) {
+      allDay = false;
+      const startDate = new Date(`${dateVal}T${timeVal}:00`);
+      newStart = startDate.toISOString();
+      newEnd = new Date(startDate.getTime() + 60 * 60 * 1000).toISOString();
+    } else {
+      allDay = true;
+      newStart = new Date(`${dateVal}T00:00:00`).toISOString();
+      newEnd = new Date(`${dateVal}T23:59:59`).toISOString();
+    }
+
+    newTaskSubmit.disabled = true;
+    newTaskError.textContent = "";
+    try {
+      await callUpdate({ action: "create", name, location, allDay, newStart, newEnd });
+      newTaskForm.hidden = true;
+      newTaskToggle.hidden = false;
+      resetNewTaskForm();
+      await loadTasks();
+    } catch (e) {
+      newTaskError.textContent = "Fehler: " + e.message;
+    } finally {
+      newTaskSubmit.disabled = false;
+    }
+  });
 
   loadTasks();
 </script>
