@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aufgaben Geschäftsstelle</title>
+<style>
+  :root {
+    --red: #bd0010;
+    --border: #d7dce3;
+    --bg: #f7f8fa;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --danger: #b3261e;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+  }
+  #app {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 22px 20px 40px;
+  }
+  h1 {
+    font-size: 17px;
+    margin: 0 0 18px;
+    text-align: center;
+  }
+
+  #hint, #error {
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 24px;
+  }
+  #error { color: var(--danger); }
+
+  .day-group { margin-bottom: 22px; }
+  .day-heading {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--red);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    border-bottom: 2px solid var(--red);
+    padding-bottom: 4px;
+    margin-bottom: 8px;
+  }
+
+  .task {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+  }
+  .task.canceled { opacity: 0.6; }
+  .task.canceled .task-name { text-decoration: line-through; color: var(--muted); }
+
+  .task-time {
+    flex: 0 0 auto;
+    width: 58px;
+    font-size: 12.5px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .task-body { flex: 1 1 auto; min-width: 0; }
+  .task-name { font-size: 14px; font-weight: 600; }
+  .task-location { font-size: 12px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>Aufgaben Geschäftsstelle</h1>
+  <div id="hint">Lädt …</div>
+  <div id="error" hidden></div>
+  <div id="results"></div>
+</div>
+
+<script>
+  const TASKS_URL = "https://cclcdhwnzkzciwjaclzt.supabase.co/functions/v1/aufgaben-gs-events";
+
+  const hint = document.getElementById("hint");
+  const errorBox = document.getElementById("error");
+  const resultsBox = document.getElementById("results");
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function dayKey(iso) {
+    return iso.slice(0, 10);
+  }
+
+  function formatDayHeading(iso) {
+    const d = new Date(iso);
+    const today = new Date();
+    const isToday = d.toDateString() === today.toDateString();
+    const label = d.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+    return isToday ? `Heute – ${label}` : label;
+  }
+
+  function formatTime(iso, allDay) {
+    if (allDay) return "";
+    return new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function renderTasks(tasks) {
+    resultsBox.innerHTML = "";
+    if (tasks.length === 0) {
+      hint.textContent = "Keine Aufgaben im gewählten Zeitraum.";
+      hint.hidden = false;
+      return;
+    }
+    hint.hidden = true;
+
+    let currentDay = null;
+    let groupEl = null;
+    for (const t of tasks) {
+      const key = dayKey(t.start);
+      if (key !== currentDay) {
+        currentDay = key;
+        groupEl = document.createElement("div");
+        groupEl.className = "day-group";
+        groupEl.innerHTML = `<div class="day-heading">${escapeHtml(formatDayHeading(t.start))}</div>`;
+        resultsBox.appendChild(groupEl);
+      }
+      const taskEl = document.createElement("div");
+      taskEl.className = "task" + (t.canceled ? " canceled" : "");
+      const time = formatTime(t.start, t.allDay);
+      taskEl.innerHTML =
+        `<div class="task-time">${time ? escapeHtml(time) : ""}</div>` +
+        `<div class="task-body">` +
+          `<div class="task-name">${escapeHtml(t.name)}${t.canceled ? " (abgesagt)" : ""}</div>` +
+          (t.location ? `<div class="task-location">${escapeHtml(t.location)}</div>` : "") +
+        `</div>`;
+      groupEl.appendChild(taskEl);
+    }
+  }
+
+  async function loadTasks() {
+    hint.textContent = "Lädt …";
+    hint.hidden = false;
+    errorBox.hidden = true;
+    try {
+      const resp = await fetch(TASKS_URL);
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Unbekannter Fehler.");
+      renderTasks(data.tasks);
+    } catch (e) {
+      hint.hidden = true;
+      errorBox.textContent = "Fehler beim Laden: " + e.message;
+      errorBox.hidden = false;
+    }
+  }
+
+  loadTasks();
+</script>
+</body>
+</html>
