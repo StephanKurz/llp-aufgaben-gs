@@ -17,15 +17,22 @@
   }
   * { box-sizing: border-box; }
   html, body {
+    height: 100%;
     margin: 0; padding: 0;
     font-family: -apple-system, "Segoe UI", Arial, sans-serif;
     color: var(--text);
     background: var(--bg);
+    /* Die Seite selbst (bzw. der iFrame) soll nie höher werden als der verfügbare
+       Platz und nie scrollen - nur #app scrollt intern. */
+    overflow: hidden;
   }
   #app {
     max-width: 640px;
+    height: 100%;
     margin: 0 auto;
     padding: 0 20px 40px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   #new-task-row {
