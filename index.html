@@ -25,15 +25,16 @@
   #app {
     max-width: 640px;
     margin: 0 auto;
-    padding: 22px 20px 40px;
-  }
-  h1 {
-    font-size: 17px;
-    margin: 0 0 14px;
-    text-align: center;
+    padding: 0 20px 40px;
   }
 
-  #new-task-row { text-align: center; margin-bottom: 18px; }
+  #new-task-row {
+    position: sticky; top: 0; z-index: 10;
+    text-align: center;
+    background: var(--bg);
+    padding: 16px 0 10px;
+    margin-bottom: 8px;
+  }
   #new-task-toggle {
     padding: 7px 16px; border: 1px solid var(--red); border-radius: 6px;
     background: #fff; color: var(--red); font-size: 13px; font-weight: 600;
@@ -139,8 +140,6 @@
 </head>
 <body>
 <div id="app">
-  <h1>Aufgaben Geschäftsstelle</h1>
-
   <div id="new-task-row">
     <button type="button" id="new-task-toggle">+ Neue Aufgabe</button>
   </div>
@@ -546,15 +545,14 @@
   }
 
   newTaskToggle.addEventListener("click", () => {
+    if (!newTaskForm.hidden) return;
     newTaskForm.hidden = false;
-    newTaskToggle.hidden = true;
     newTaskDate.value = localDateStr(new Date());
     newTaskName.focus();
   });
 
   newTaskCancel.addEventListener("click", () => {
     newTaskForm.hidden = true;
-    newTaskToggle.hidden = false;
     resetNewTaskForm();
   });
 
@@ -587,7 +585,6 @@
         alert(`Hinweis: Es wären ${totalPossible} Termine bis zum Verfallsdatum möglich gewesen. Angelegt wurden die ersten ${occurrences.length} (bis ${lastDate}) – mehr auf einmal ist aus Performance-Gründen begrenzt. Bei Bedarf danach einfach erneut "Neue Aufgabe" mit Wiederholung anlegen.`);
       }
       newTaskForm.hidden = true;
-      newTaskToggle.hidden = false;
       resetNewTaskForm();
       await loadTasks();
     } catch (e) {
