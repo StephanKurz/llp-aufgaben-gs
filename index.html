@@ -92,7 +92,8 @@
   }
   .task.removing { opacity: 0; transform: translateX(8px); }
 
-  .task-row { display: flex; gap: 12px; align-items: baseline; }
+  .task-top { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+  .task-row { display: flex; gap: 12px; align-items: baseline; flex: 1 1 auto; min-width: 0; }
   .task-time {
     flex: 0 0 auto;
     width: 58px;
@@ -105,7 +106,7 @@
   .task-location { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
   .task-actions {
-    display: flex; gap: 8px; margin-top: 8px; padding-left: 70px;
+    display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto;
   }
   .task-action {
     font-size: 15px; font-weight: 600; cursor: pointer; user-select: none;
@@ -435,16 +436,18 @@
       taskEl.className = "task";
       const time = formatTime(t.start, t.allDay);
       taskEl.innerHTML =
-        `<div class="task-row">` +
-          `<div class="task-time">${time ? escapeHtml(time) : ""}</div>` +
-          `<div class="task-body">` +
-            `<div class="task-name">${escapeHtml(t.name)}</div>` +
-            (t.location ? `<div class="task-location">${escapeHtml(simplifyLocation(t.location))}</div>` : "") +
+        `<div class="task-top">` +
+          `<div class="task-row">` +
+            `<div class="task-time">${time ? escapeHtml(time) : ""}</div>` +
+            `<div class="task-body">` +
+              `<div class="task-name">${escapeHtml(t.name)}</div>` +
+              (t.location ? `<div class="task-location">${escapeHtml(simplifyLocation(t.location))}</div>` : "") +
+            `</div>` +
           `</div>` +
-        `</div>` +
-        `<div class="task-actions">` +
-          `<button type="button" class="task-action done" title="Erledigt" aria-label="Erledigt">✓</button>` +
-          `<button type="button" class="task-action move" title="Verschieben" aria-label="Verschieben">↻</button>` +
+          `<div class="task-actions">` +
+            `<button type="button" class="task-action done" title="Erledigt" aria-label="Erledigt">✓</button>` +
+            `<button type="button" class="task-action move" title="Verschieben" aria-label="Verschieben">↻</button>` +
+          `</div>` +
         `</div>`;
 
       const doneBtn = taskEl.querySelector(".task-action.done");
